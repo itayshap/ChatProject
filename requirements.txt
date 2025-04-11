@@ -1,0 +1,7 @@
+sentence-transformers==3.0.1
+numpy==1.26.4
+qdrant-client==1.11.1
+fastapi==0.112.2
+uvicorn==0.30.6
+openai==1.43.0
+python-dotenv==1.0.1
