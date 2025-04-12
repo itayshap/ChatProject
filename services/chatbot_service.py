@@ -70,4 +70,48 @@ Provide an answer in the following JSON format:
 
         answer = json.loads(completion.choices[0].message.content)["answer"]
         return answer
-        
+    
+    @classmethod
+    def search2(cls, openai_client: OpenAI, message, user_history):
+        system_prompt = cls.build_system_prompt2(user_history)
+        system_message = {"role": "system", "content": system_prompt}
+        user_message = {"role": "user", "content": message}
+
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[system_message, user_message],
+            response_format={"type": "json_object"},
+        )
+
+        answer = json.loads(completion.choices[0].message.content)["answer"]
+        return answer
+    
+    @staticmethod
+    def build_system_prompt2(user_history):
+        formatted_data = "\n-----\n".join(
+            [
+                f"Qeustion: {message['message']}\nAnswer: {message['answer']}\n"
+                for message in user_history
+            ]
+        )
+        return f"""
+        You are a question clarifier. I will provide you with a conversation history that includes previous interactions as dictionaries
+        with 'message' for user questions and 'answer' for assistant responses. Your task is to rephrase an ambiguous follow-up question
+        into a fully self-contained query by integrating relevant context from this conversation. For example, given the conversation:\n\n
+        User: 'Are there startups about wine in Chicago?'\n
+        Assistant: 'Yes, Winestyr is a startup based in Chicago that offers a smarter way to wine by providing an alternative to mass-produced wines.'\n\n
+        and a follow-up question: 'And in NY?', you should output: 'Are there startups about wine in NY?'\n\n
+        If there is no conversation history or do you think there is no context relation between the follow-up question and the conversation history, return the 
+        follow-up question unchanged.
+        Please output only the clarified, fully formed question.
+
+        the following is the conversation history:
+        ###
+        {formatted_data}
+        ###
+        Provide an answer in the following JSON format:
+        {{
+            "answer": string
+        }}
+        """
+

@@ -18,26 +18,20 @@ user_history = {}
 class Query(BaseModel):
     message: str
 
-@app.middleware("http")
-async def add_user_id_cookie(request: Request, call_next):
-    response = await call_next(request)
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        user_id = str(uuid.uuid4())
-        response.set_cookie(key="user_id", value=user_id, httponly=True)
-    return response
-
 @app.post("/query")
 async def query(query: Query, request: Request, response: Response):
+    user_message = query.message
     user_id = request.cookies.get("user_id")
     if not user_id:
         user_id = str(uuid.uuid4())
     if user_id not in user_history:
         user_history[user_id] = []
     response.set_cookie(key="user_id", value=user_id, httponly=True)
-    retrieved_data = neural_searcher.search(text=query.message)
-    output = Chatbot.search(openai_client, retrieved_data, query.message)
-    user_history[user_id].append({"message" : query.message, "answer" : output})
+    if len(user_history[user_id]) > 0:
+        user_message = Chatbot.search2(openai_client, user_message, user_history[user_id])
+    retrieved_data = neural_searcher.search(text=user_message)
+    output = Chatbot.search(openai_client, retrieved_data, user_message)
+    user_history[user_id].append({"message" : user_message, "answer" : output})
     if len(user_history[user_id]) > 10:
         user_history[user_id] = user_history[user_id][-10:]
     response = JSONResponse(content={"output": output})
