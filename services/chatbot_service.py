@@ -68,7 +68,7 @@ Provide an answer in the following JSON format:
         return answer
     
     @classmethod
-    async def search2(cls, openai_client: OpenAI, message, user_history):
+    async def search_with_context(cls, openai_client: OpenAI, message, user_history):
         messages = []
         system_prompt = """
         You are a question clarifier. I will provide you with a conversation history structured as individual messages.

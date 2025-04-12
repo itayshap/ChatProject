@@ -20,50 +20,66 @@ user_sequential_messages = {}
 class Query(BaseModel):
     message: str
 
-@app.post("/query")
-async def query(query: Query, request: Request, response: Response):
-    user_message = query.message
+def get_or_create_user_id(request: Request, response: Response) -> str:
+    """
+    Retrieves the user_id from cookies or creates a new one if it doesn't exist.
+    Sets the user_id cookie in the response if a new one is created.
+    """
     user_id = request.cookies.get("user_id")
     if not user_id:
         user_id = str(uuid.uuid4())
+        response.set_cookie(key="user_id", value=user_id, httponly=True)
+    return user_id
+
+@app.post("/query")
+async def query(query: Query, request: Request, response: Response):
+    user_message = query.message
+    user_id = get_or_create_user_id(request, response)
+    
     if user_id not in user_history:
         user_history[user_id] = []
     if user_id not in user_sequential_messages:
         user_sequential_messages[user_id] = 0
     else:
         user_sequential_messages[user_id] += 1
-    print(f"this is the sequentail: {user_sequential_messages[user_id]}")
-    response.set_cookie(key="user_id", value=user_id, httponly=True)
+
+    print(f"this is the sequential: {user_sequential_messages[user_id]}")
+
     if len(user_history[user_id]) > 0:
-        task = asyncio.create_task(Chatbot.search2(openai_client, user_message, user_history[user_id]))
+        task = asyncio.create_task(Chatbot.search_with_context(openai_client, user_message, user_history[user_id]))
         user_message = await task
+
     retrieved_data = neural_searcher.search(text=user_message)
     task1 = asyncio.create_task(Chatbot.search(openai_client, retrieved_data, user_message))
     output = await task1
-    user_history[user_id].append({"role" : "user", "content": user_message})
+
+    user_history[user_id].append({"role": "user", "content": user_message})
     if user_sequential_messages[user_id] > 0:
         user_sequential_messages[user_id] -= 1
-        outdated_response = "Your query has been updated. Please wait for the latest answer."     
+        outdated_response = "Your query has been updated. Please wait for the latest answer."
         return {"output": outdated_response}
+
     user_sequential_messages.pop(user_id)
-    user_history[user_id].append({"role" : "assistant", "content": output})
+    user_history[user_id].append({"role": "assistant", "content": output})
+
     if len(user_history[user_id]) > 20:
         user_history[user_id] = user_history[user_id][-20:]
+
     response = JSONResponse(content={"output": output})
     return response
 
 @app.get("/summarize")
-async def summarize(request: Request):
-    user_id = request.cookies.get("user_id")
-    if not user_id or user_id not in user_history:
+async def summarize(request: Request, response: Response):
+    user_id = get_or_create_user_id(request, response)
+    if user_id not in user_history:
         return {"output": "No History"}
     output = Chatbot.summarize(user_history[user_id], openai_client)
-    return ({"output" : output})
-     
+    return {"output": output}
+
 @app.get("/history")
-async def history(request: Request):
-    user_id = request.cookies.get("user_id")
-    if not user_id or user_id not in user_history:
+async def history(request: Request, response: Response):
+    user_id = get_or_create_user_id(request, response)
+    if user_id not in user_history:
         return {"output": "No History"}
     return {"output": user_history[user_id]}
     
