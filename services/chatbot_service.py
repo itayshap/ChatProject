@@ -44,17 +44,6 @@ Provide an answer in the following JSON format:
     @staticmethod
     def summarize(user_history: list, openai_client: OpenAI):
         messages = []
-        system_prompt = """You are an expert summarizer. I will provide you with a conversation history structured as individual messages. 
-        Each user message is marked with "role": "user" and each assistant response is marked with "role": "assistant".
-        Summarize all these conversation messages conducted between a user and assistant Q&A AI chatbot 
-        Your summary should capture the key topics, questions, and responses in a concise and coherent manner.
-        your summary should be in a first-person tone, as if your are speaking to the user.
-        Start the summary with the sentance: "This is a summary of the conversation so far,"
-        Provide an answer in the following JSON format:
-        {
-            "summary": string
-        }
-        """
         system_prompt = """
         You are an expert summarizer. Please read through the conversation below between a user and an assistant and generate a concise summary that captures the key points, topics, and main messages discussed. 
         Focus on creating a clear overview that includes the user's questions and the assistant's responses. Output only the summary text.
@@ -69,7 +58,6 @@ Provide an answer in the following JSON format:
         system_message = {"role": "system", "content": system_prompt}
         messages.append(system_message)
         messages += user_history
-        print(messages)
         completion = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
