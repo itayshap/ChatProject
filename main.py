@@ -29,11 +29,13 @@ async def query(query: Query, request: Request, response: Response):
     response.set_cookie(key="user_id", value=user_id, httponly=True)
     if len(user_history[user_id]) > 0:
         user_message = Chatbot.search2(openai_client, user_message, user_history[user_id])
+        print(user_message)
     retrieved_data = neural_searcher.search(text=user_message)
     output = Chatbot.search(openai_client, retrieved_data, user_message)
-    user_history[user_id].append({"message" : user_message, "answer" : output})
-    if len(user_history[user_id]) > 10:
-        user_history[user_id] = user_history[user_id][-10:]
+    user_history[user_id].append({"role" : "user", "content": user_message})
+    user_history[user_id].append({"role" : "assistant", "content": output})
+    if len(user_history[user_id]) > 20:
+        user_history[user_id] = user_history[user_id][-20:]
     response = JSONResponse(content={"output": output})
     return response
 

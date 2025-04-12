@@ -43,43 +43,69 @@ Provide an answer in the following JSON format:
 """
     @staticmethod
     def summarize(user_history: list, openai_client: OpenAI):
-
-        system_prompt = """You are an expert summarizer. 
-        Summarize the following conversation between a user and a Start-Ups related Q&A AI Chatbot. 
+        messages = []
+        system_prompt = """You are an expert summarizer. I will provide you with a conversation history structured as individual messages. 
+        Each user message is marked with "role": "user" and each assistant response is marked with "role": "assistant".
+        Summarize all these conversation messages conducted between a user and assistant Q&A AI chatbot 
         Your summary should capture the key topics, questions, and responses in a concise and coherent manner.
-        your summary should be in a first-person tone, as if your are speaking to the user
+        your summary should be in a first-person tone, as if your are speaking to the user.
+        Start the summary with the sentance: "This is a summary of the conversation so far,"
         Provide an answer in the following JSON format:
         {
-            "answer": string
+            "summary": string
         }
         """
-        formatted_data = "\n-----\n".join(
-            [
-                f"Qeustion: {message['message']}\nAnswer: {message['answer']}\n"
-                for message in user_history
-            ]
-        )
+        system_prompt = """
+        You are an expert summarizer. Please read through the conversation below between a user and an assistant and generate a concise summary that captures the key points, topics, and main messages discussed. 
+        Focus on creating a clear overview that includes the user's questions and the assistant's responses. Output only the summary text.
+        The conversation provided below is structured as a list of messages in JSON format.
+        Each message has a "role" field (either "user" or "assistant") and a "content" field with the text of the message.
+        your summary should be in a first-person tone, as if your are speaking to the user.
+         Provide an answer in the following JSON format:
+        {
+            "summary": string
+        }       
+        """
         system_message = {"role": "system", "content": system_prompt}
-        user_message = {"role": "user", "content": formatted_data}
-
+        messages.append(system_message)
+        messages += user_history
+        print(messages)
         completion = openai_client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[system_message, user_message],
+            messages=messages,
             response_format={"type": "json_object"},
         )
-
-        answer = json.loads(completion.choices[0].message.content)["answer"]
+        answer = json.loads(completion.choices[0].message.content)["summary"]
         return answer
     
     @classmethod
     def search2(cls, openai_client: OpenAI, message, user_history):
-        system_prompt = cls.build_system_prompt2(user_history)
+        messages = []
+        system_prompt = """
+        You are a question clarifier. I will provide you with a conversation history structured as individual messages.
+        Each user message is marked with "role": "user" and each assistant response is marked with "role": "assistant".
+        Your task is to rephrase an ambiguous follow-up question into a fully self-contained query by integrating the relevant context from the conversation history.
+        For example, if the conversation history contains:
+        User: "Are there startups about wine in Chicago?"
+        Assistant: "Yes, Winestyr is a startup based in Chicago that offers a smarter way to wine by providing an alternative to mass-produced wines."
+        and the ambiguous follow-up question is:
+        "And in NY?"
+        then you should output:
+        "Are there startups about wine in NY?"
+        If there is no conversation history or you determine that the follow-up question does not depend on prior context, return the follow-up question unchanged.
+        Please output only the clarified, fully formed question in the following JSON format:
+        {
+            "answer": string
+        }
+        """
+        
         system_message = {"role": "system", "content": system_prompt}
-        user_message = {"role": "user", "content": message}
-
+        messages.append(system_message)
+        messages += user_history
+        messages.append({"role": "user", "content": message})
         completion = openai_client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[system_message, user_message],
+            messages=messages,
             response_format={"type": "json_object"},
         )
 
@@ -87,31 +113,11 @@ Provide an answer in the following JSON format:
         return answer
     
     @staticmethod
-    def build_system_prompt2(user_history):
-        formatted_data = "\n-----\n".join(
-            [
-                f"Qeustion: {message['message']}\nAnswer: {message['answer']}\n"
-                for message in user_history
-            ]
-        )
-        return f"""
-        You are a question clarifier. I will provide you with a conversation history that includes previous interactions as dictionaries
-        with 'message' for user questions and 'answer' for assistant responses. Your task is to rephrase an ambiguous follow-up question
-        into a fully self-contained query by integrating relevant context from this conversation. For example, given the conversation:\n\n
-        User: 'Are there startups about wine in Chicago?'\n
-        Assistant: 'Yes, Winestyr is a startup based in Chicago that offers a smarter way to wine by providing an alternative to mass-produced wines.'\n\n
-        and a follow-up question: 'And in NY?', you should output: 'Are there startups about wine in NY?'\n\n
-        If there is no conversation history or do you think there is no context relation between the follow-up question and the conversation history, return the 
-        follow-up question unchanged.
-        Please output only the clarified, fully formed question.
-
-        the following is the conversation history:
-        ###
-        {formatted_data}
-        ###
-        Provide an answer in the following JSON format:
-        {{
-            "answer": string
-        }}
-        """
+    def build_user_prompt(user_history):
+        formatted_data  = []
+        for message in user_history:
+            formatted_data.append({"role": "user", "content": message['message']})
+            formatted_data.append({"role": "assistant", "content": message['answer']})
+        
+        return formatted_data
 
