@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, Response
 from openai import OpenAI
 from pydantic import BaseModel
 import uuid
+from collections import deque
 
 from config import OPENAI_KEY
 from services.chatbot_service import Chatbot
@@ -37,7 +38,7 @@ async def query(query: Query, request: Request, response: Response):
     user_id = get_or_create_user_id(request, response)
     
     if user_id not in user_history:
-        user_history[user_id] = []
+        user_history[user_id] = deque(maxlen=10)
     if user_id not in user_sequential_messages:
         user_sequential_messages[user_id] = 0
     else:
@@ -46,7 +47,7 @@ async def query(query: Query, request: Request, response: Response):
     print(f"this is the sequential: {user_sequential_messages[user_id]}")
 
     if len(user_history[user_id]) > 0:
-        task = asyncio.create_task(Chatbot.search_with_context(openai_client, user_message, user_history[user_id]))
+        task = asyncio.create_task(Chatbot.search_with_context(openai_client, user_message, list(user_history[user_id])))
         user_message = await task
 
     retrieved_data = neural_searcher.search(text=user_message)
@@ -62,9 +63,6 @@ async def query(query: Query, request: Request, response: Response):
     user_sequential_messages.pop(user_id)
     user_history[user_id].append({"role": "assistant", "content": output})
 
-    if len(user_history[user_id]) > 20:
-        user_history[user_id] = user_history[user_id][-20:]
-
     response = JSONResponse(content={"output": output})
     return response
 
@@ -73,7 +71,7 @@ async def summarize(request: Request, response: Response):
     user_id = get_or_create_user_id(request, response)
     if user_id not in user_history:
         return {"output": "No History"}
-    output = Chatbot.summarize(user_history[user_id], openai_client)
+    output = Chatbot.summarize(list(user_history[user_id]), openai_client)
     return {"output": output}
 
 @app.get("/history")
@@ -81,7 +79,7 @@ async def history(request: Request, response: Response):
     user_id = get_or_create_user_id(request, response)
     if user_id not in user_history:
         return {"output": "No History"}
-    return {"output": user_history[user_id]}
+    return {"output": list(user_history[user_id])}
     
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=9000, reload=True)
