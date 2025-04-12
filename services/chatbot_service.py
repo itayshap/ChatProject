@@ -41,3 +41,33 @@ Provide an answer in the following JSON format:
     "answer": string
 }}
 """
+    @staticmethod
+    def summarize(user_history: list, openai_client: OpenAI):
+
+        system_prompt = """You are an expert summarizer. 
+        Summarize the following conversation between a user and a Start-Ups related Q&A AI Chatbot. 
+        Your summary should capture the key topics, questions, and responses in a concise and coherent manner.
+        your summary should be in a first-person tone, as if your are speaking to the user
+        Provide an answer in the following JSON format:
+        {
+            "answer": string
+        }
+        """
+        formatted_data = "\n-----\n".join(
+            [
+                f"Qeustion: {message['message']}\nAnswer: {message['answer']}\n"
+                for message in user_history
+            ]
+        )
+        system_message = {"role": "system", "content": system_prompt}
+        user_message = {"role": "user", "content": formatted_data}
+
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[system_message, user_message],
+            response_format={"type": "json_object"},
+        )
+
+        answer = json.loads(completion.choices[0].message.content)["answer"]
+        return answer
+        
