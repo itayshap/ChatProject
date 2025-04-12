@@ -1,4 +1,5 @@
 import json
+from asyncio import sleep
 
 from openai import OpenAI
 
@@ -6,7 +7,7 @@ from openai import OpenAI
 class Chatbot:
 
     @classmethod
-    def search(cls, openai_client: OpenAI, data, message):
+    async def search(cls, openai_client: OpenAI, data, message):
         system_prompt = cls.build_system_prompt(data)
         system_message = {"role": "system", "content": system_prompt}
         user_message = {"role": "user", "content": message}
@@ -16,7 +17,7 @@ class Chatbot:
             messages=[system_message, user_message],
             response_format={"type": "json_object"},
         )
-
+        await sleep(5)
         answer = json.loads(completion.choices[0].message.content)["answer"]
         return answer
 
@@ -67,7 +68,7 @@ Provide an answer in the following JSON format:
         return answer
     
     @classmethod
-    def search2(cls, openai_client: OpenAI, message, user_history):
+    async def search2(cls, openai_client: OpenAI, message, user_history):
         messages = []
         system_prompt = """
         You are a question clarifier. I will provide you with a conversation history structured as individual messages.
@@ -96,7 +97,7 @@ Provide an answer in the following JSON format:
             messages=messages,
             response_format={"type": "json_object"},
         )
-
+        await sleep(5)
         answer = json.loads(completion.choices[0].message.content)["answer"]
         return answer
     

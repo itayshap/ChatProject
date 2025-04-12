@@ -1,3 +1,4 @@
+import asyncio
 from fastapi.responses import JSONResponse
 import uvicorn
 from fastapi import FastAPI, Request, Response
@@ -14,6 +15,7 @@ neural_searcher = NeuralSearcher(collection_name="startups")
 openai_client = OpenAI(api_key=OPENAI_KEY)
 
 user_history = {}
+user_sequential_messages = {}
 
 class Query(BaseModel):
     message: str
@@ -26,13 +28,24 @@ async def query(query: Query, request: Request, response: Response):
         user_id = str(uuid.uuid4())
     if user_id not in user_history:
         user_history[user_id] = []
+    if user_id not in user_sequential_messages:
+        user_sequential_messages[user_id] = 0
+    else:
+        user_sequential_messages[user_id] += 1
+    print(f"this is the sequentail: {user_sequential_messages[user_id]}")
     response.set_cookie(key="user_id", value=user_id, httponly=True)
     if len(user_history[user_id]) > 0:
-        user_message = Chatbot.search2(openai_client, user_message, user_history[user_id])
-        print(user_message)
+        task = asyncio.create_task(Chatbot.search2(openai_client, user_message, user_history[user_id]))
+        user_message = await task
     retrieved_data = neural_searcher.search(text=user_message)
-    output = Chatbot.search(openai_client, retrieved_data, user_message)
+    task1 = asyncio.create_task(Chatbot.search(openai_client, retrieved_data, user_message))
+    output = await task1
     user_history[user_id].append({"role" : "user", "content": user_message})
+    if user_sequential_messages[user_id] > 0:
+        user_sequential_messages[user_id] -= 1
+        outdated_response = "Your query has been updated. Please wait for the latest answer."     
+        return {"output": outdated_response}
+    user_sequential_messages.pop(user_id)
     user_history[user_id].append({"role" : "assistant", "content": output})
     if len(user_history[user_id]) > 20:
         user_history[user_id] = user_history[user_id][-20:]
