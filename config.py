@@ -23,14 +23,24 @@ CONTEXT_SYSTEM_PROMPT = """
         }
         """
 
-SUMMARY_SYSTEM_PROMPT = """
-        You are an expert summarizer. Please read through the conversation below between a user and an assistant and generate a concise summary that captures the key points, topics, and main messages discussed. 
-        Focus on creating a clear overview that includes the user's questions and the assistant's responses. Output only the summary text.
-        The conversation provided below is structured as a list of messages in JSON format.
-        Each message has a "role" field (either "user" or "assistant") and a "content" field with the text of the message.
-        your summary should be in a first-person tone, as if your are speaking to the user.
-         Provide an answer in the following JSON format:
-        {
-            "answer": string
-        }       
-        """
+SUMMARY_SYSTEM_PROMPT = """You are an expert summarizer
+
+Summarize the entire conversation between the user and the assistant, including greetings and any follow-up questions.
+
+Write it in first-person as if *I* (the user) were summarizing the chat.
+
+Respond ONLY with a JSON object in this exact format:
+{
+  "answer": "your summary goes here"
+}"""
+# SUMMARY_SYSTEM_PROMPT = """
+#         You are an expert summarizer. Please read through the conversation below between a user and an assistant and generate a concise summary that captures the key points, topics, and main messages discussed, try your best to focus on all messages rather than the last.
+#         Focus on creating a clear overview that includes the user's questions and the assistant's responses. Output only the summary text.
+#         The conversation provided below is structured as a list of messages in JSON format.
+#         Each message has a "role" field (either "user" or "assistant") and a "content" field with the text of the message.
+#         your summary should be in a first-person tone, as if your are speaking to the user.
+#          Provide an answer in the following JSON format:
+#         {
+#             "answer": string
+#         }
+#         """
