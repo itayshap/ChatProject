@@ -10,7 +10,7 @@ class Chatbot:
     async def search(cls, openai_client: OpenAI, data, message):
         system_prompt = cls.build_system_prompt(data)
         messages = cls.prepare_model_messages(system_prompt, [{"role": "user", "content": message}])
-        await sleep(5)
+        # await sleep(5) # Uncomment to simulate task 3
         return cls.run_model(openai_client, messages)
 
     @classmethod
@@ -22,7 +22,7 @@ class Chatbot:
     async def build_user_message(cls, openai_client: OpenAI, message, user_history):
         messages = cls.prepare_model_messages(CONTEXT_SYSTEM_PROMPT, user_history)
         messages.append({"role": "user", "content": message})
-        await sleep(5)
+        # await sleep(5) # Uncomment to simulate task 3
         return cls.run_model(openai_client, messages)
 
     @staticmethod

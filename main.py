@@ -28,6 +28,14 @@ def has_pending_messages(user_id: str):
         return True
     return False
 
+def handle_user_context(user_id: str):
+    if user_id not in user_history:
+        user_history[user_id] = deque(maxlen=10)
+    if user_id not in user_pending_messages:
+        user_pending_messages[user_id] = 0
+    else:
+        user_pending_messages[user_id] += 1
+
 app = FastAPI(dependencies=[Depends(get_user_id_from_header)])
 
 neural_searcher = NeuralSearcher(collection_name="startups")
@@ -42,14 +50,11 @@ class Query(BaseModel):
 @app.post("/query")
 async def query(query: Query, user_id: str = Depends(get_user_id_from_header)):
     user_message = query.message
-    
-    if user_id not in user_history:
-        user_history[user_id] = deque(maxlen=10)
-    if user_id not in user_pending_messages:
-        user_pending_messages[user_id] = 0
-    else:
-        user_pending_messages[user_id] += 1
 
+    if not user_message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    handle_user_context(user_id)
     user_history[user_id].append({"role": "user", "content": user_message})
 
     if len(user_history[user_id]) > 0:
