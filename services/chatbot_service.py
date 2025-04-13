@@ -18,7 +18,7 @@ class Chatbot:
         return cls.run_model(openai_client, messages)
 
     @classmethod
-    async def search_with_context(cls, openai_client: OpenAI, message, user_history):
+    async def build_user_message(cls, openai_client: OpenAI, message, user_history):
         messages = cls.prepare_model_messages(CONTEXT_SYSTEM_PROMPT, user_history)
         messages.append({"role": "user", "content": message})
         return cls.run_model(openai_client, messages)
