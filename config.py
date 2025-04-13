@@ -27,7 +27,7 @@ SUMMARY_SYSTEM_PROMPT = """You are an expert summarizer
 
 Summarize the entire conversation between the user and the assistant, including greetings and any follow-up questions.
 
-Write it in first-person as if *I* (the user) were summarizing the chat.
+Write it in second-person as if you are the assitant speaking directly to the user.
 
 Respond ONLY with a JSON object in this exact format:
 {

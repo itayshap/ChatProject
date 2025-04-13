@@ -44,19 +44,26 @@ async def query(query: Query, user_id: str = Depends(get_user_id_from_header)):
     else:
         user_pending_messages[user_id] += 1
 
-    print(f"this is the sequential: {user_pending_messages[user_id]}")
     user_history[user_id].append({"role": "user", "content": user_message})
 
     if len(user_history[user_id]) > 0:
         user_message = await Chatbot.build_user_message(openai_client, user_message, list(user_history[user_id]))
+        if user_pending_messages[user_id] > 0:
+            user_pending_messages[user_id] -= 1
+            outdated_response = "Your query has been updated. Please wait for the latest answer."
+            return {"output": outdated_response}
 
     retrieved_data = await neural_searcher.search(text=user_message)
-    output = await Chatbot.search(openai_client, retrieved_data, user_message)
-
     if user_pending_messages[user_id] > 0:
         user_pending_messages[user_id] -= 1
         outdated_response = "Your query has been updated. Please wait for the latest answer."
-        return {"output": outdated_response}
+        return {"output": outdated_response}   
+    output = await Chatbot.search(openai_client, retrieved_data, user_message)
+    if user_pending_messages[user_id] > 0:
+        user_pending_messages[user_id] -= 1
+        outdated_response = "Your query has been updated. Please wait for the latest answer."
+        return {"output": outdated_response} 
+
 
     user_pending_messages.pop(user_id)
     user_history[user_id].append({"role": "assistant", "content": output})
