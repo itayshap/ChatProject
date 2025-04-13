@@ -78,14 +78,14 @@ async def query(query: Query, user_id: str = Depends(get_user_id_from_header)):
 @app.get("/summarize")
 async def summarize(user_id: str = Depends(get_user_id_from_header)):
     if user_id not in user_history:
-        return {"output": "No History"}
+        raise HTTPException(status_code=404, detail="User not found")
     output = Chatbot.summarize(list(user_history[user_id]), openai_client)
     return {"output": output}
 
 @app.get("/history")
 async def history(user_id: str = Depends(get_user_id_from_header)):
     if user_id not in user_history:
-        return {"output": "No History"}
+        raise HTTPException(status_code=404, detail="User not found")
     return {"output": user_history[user_id]}
     
 if __name__ == "__main__":
