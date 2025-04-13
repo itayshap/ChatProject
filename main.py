@@ -1,7 +1,8 @@
 import asyncio
 from fastapi.responses import JSONResponse
 import uvicorn
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from openai import OpenAI
 from pydantic import BaseModel
 import uuid
@@ -11,7 +12,20 @@ from config import OPENAI_KEY
 from services.chatbot_service import Chatbot
 from services.neural_search_service import NeuralSearcher
 
-app = FastAPI()
+security = HTTPBearer()
+
+def get_user_id_from_header(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    """
+    Retrieves the user_id from the Authorization header.
+    Raises an HTTPException if the header is missing or invalid.
+    """
+    user_id = credentials.credentials
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID missing in Authorization header")
+    return user_id
+
+app = FastAPI(dependencies=[Depends(get_user_id_from_header)])
+
 neural_searcher = NeuralSearcher(collection_name="startups")
 openai_client = OpenAI(api_key=OPENAI_KEY)
 
@@ -21,21 +35,9 @@ user_sequential_messages = {}
 class Query(BaseModel):
     message: str
 
-def get_or_create_user_id(request: Request, response: Response) -> str:
-    """
-    Retrieves the user_id from cookies or creates a new one if it doesn't exist.
-    Sets the user_id cookie in the response if a new one is created.
-    """
-    user_id = request.cookies.get("user_id")
-    if not user_id:
-        user_id = str(uuid.uuid4())
-        response.set_cookie(key="user_id", value=user_id, httponly=True)
-    return user_id
-
 @app.post("/query")
-async def query(query: Query, request: Request, response: Response):
+async def query(query: Query, user_id: str = Depends(get_user_id_from_header)):
     user_message = query.message
-    user_id = get_or_create_user_id(request, response)
     
     if user_id not in user_history:
         user_history[user_id] = deque(maxlen=10)
@@ -63,23 +65,20 @@ async def query(query: Query, request: Request, response: Response):
     user_sequential_messages.pop(user_id)
     user_history[user_id].append({"role": "assistant", "content": output})
 
-    response = JSONResponse(content={"output": output})
-    return response
+    return JSONResponse(content={"output": output})
 
 @app.get("/summarize")
-async def summarize(request: Request, response: Response):
-    user_id = get_or_create_user_id(request, response)
+async def summarize(user_id: str = Depends(get_user_id_from_header)):
     if user_id not in user_history:
         return {"output": "No History"}
     output = Chatbot.summarize(list(user_history[user_id]), openai_client)
     return {"output": output}
 
 @app.get("/history")
-async def history(request: Request, response: Response):
-    user_id = get_or_create_user_id(request, response)
+async def history(user_id: str = Depends(get_user_id_from_header)):
     if user_id not in user_history:
         return {"output": "No History"}
     return {"output": list(user_history[user_id])}
     
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=9000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
