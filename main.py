@@ -45,6 +45,7 @@ async def query(query: Query, user_id: str = Depends(get_user_id_from_header)):
         user_pending_messages[user_id] += 1
 
     print(f"this is the sequential: {user_pending_messages[user_id]}")
+    user_history[user_id].append({"role": "user", "content": user_message})
 
     if len(user_history[user_id]) > 0:
         user_message = await Chatbot.build_user_message(openai_client, user_message, list(user_history[user_id]))
@@ -52,7 +53,6 @@ async def query(query: Query, user_id: str = Depends(get_user_id_from_header)):
     retrieved_data = await neural_searcher.search(text=user_message)
     output = await Chatbot.search(openai_client, retrieved_data, user_message)
 
-    user_history[user_id].append({"role": "user", "content": user_message})
     if user_pending_messages[user_id] > 0:
         user_pending_messages[user_id] -= 1
         outdated_response = "Your query has been updated. Please wait for the latest answer."
@@ -74,7 +74,7 @@ async def summarize(user_id: str = Depends(get_user_id_from_header)):
 async def history(user_id: str = Depends(get_user_id_from_header)):
     if user_id not in user_history:
         return {"output": "No History"}
-    return {"output": list(user_history[user_id])}
+    return {"output": user_history[user_id]}
     
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
