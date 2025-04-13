@@ -5,7 +5,6 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from openai import OpenAI
 from pydantic import BaseModel
-import uuid
 from collections import deque
 
 from config import OPENAI_KEY
@@ -30,7 +29,7 @@ neural_searcher = NeuralSearcher(collection_name="startups")
 openai_client = OpenAI(api_key=OPENAI_KEY)
 
 user_history = {}
-user_sequential_messages = {}
+user_pending_messages = {}
 
 class Query(BaseModel):
     message: str
@@ -41,28 +40,26 @@ async def query(query: Query, user_id: str = Depends(get_user_id_from_header)):
     
     if user_id not in user_history:
         user_history[user_id] = deque(maxlen=10)
-    if user_id not in user_sequential_messages:
-        user_sequential_messages[user_id] = 0
+    if user_id not in user_pending_messages:
+        user_pending_messages[user_id] = 0
     else:
-        user_sequential_messages[user_id] += 1
+        user_pending_messages[user_id] += 1
 
-    print(f"this is the sequential: {user_sequential_messages[user_id]}")
+    print(f"this is the sequential: {user_pending_messages[user_id]}")
 
     if len(user_history[user_id]) > 0:
-        task = asyncio.create_task(Chatbot.search_with_context(openai_client, user_message, list(user_history[user_id])))
-        user_message = await task
+        user_message = await Chatbot.build_user_message(openai_client, user_message, list(user_history[user_id]))
 
-    retrieved_data = neural_searcher.search(text=user_message)
-    task1 = asyncio.create_task(Chatbot.search(openai_client, retrieved_data, user_message))
-    output = await task1
+    retrieved_data = await neural_searcher.search(text=user_message)
+    output = await Chatbot.search(openai_client, retrieved_data, user_message)
 
     user_history[user_id].append({"role": "user", "content": user_message})
-    if user_sequential_messages[user_id] > 0:
-        user_sequential_messages[user_id] -= 1
+    if user_pending_messages[user_id] > 0:
+        user_pending_messages[user_id] -= 1
         outdated_response = "Your query has been updated. Please wait for the latest answer."
         return {"output": outdated_response}
 
-    user_sequential_messages.pop(user_id)
+    user_pending_messages.pop(user_id)
     user_history[user_id].append({"role": "assistant", "content": output})
 
     return JSONResponse(content={"output": output})
