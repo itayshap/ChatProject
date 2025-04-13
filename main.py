@@ -10,9 +10,7 @@ from config import OPENAI_KEY
 from services.chatbot_service import Chatbot
 from services.neural_search_service import NeuralSearcher
 
-security = HTTPBearer()
-
-def get_user_id_from_header(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+def get_user_id_from_header(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())) -> str:
     """
     Retrieves the user_id from the Authorization header.
     Raises an HTTPException if the header is missing or invalid.
@@ -21,6 +19,12 @@ def get_user_id_from_header(credentials: HTTPAuthorizationCredentials = Depends(
     if not user_id:
         raise HTTPException(status_code=401, detail="User ID missing in Authorization header")
     return user_id
+
+def handle_pending_messages(user_id: str):
+    if user_pending_messages[user_id] > 0:
+        user_pending_messages[user_id] -= 1
+        return "Your query has been updated. Please wait for the latest answer."
+    return None
 
 app = FastAPI(dependencies=[Depends(get_user_id_from_header)])
 
@@ -48,22 +52,19 @@ async def query(query: Query, user_id: str = Depends(get_user_id_from_header)):
 
     if len(user_history[user_id]) > 0:
         user_message = await Chatbot.build_user_message(openai_client, user_message, list(user_history[user_id]))
-        if user_pending_messages[user_id] > 0:
-            user_pending_messages[user_id] -= 1
-            outdated_response = "Your query has been updated. Please wait for the latest answer."
-            return {"output": outdated_response}
+        pending_response = handle_pending_messages(user_id)
+        if pending_response:
+            return {"output": pending_response}
 
     retrieved_data = await neural_searcher.search(text=user_message)
-    if user_pending_messages[user_id] > 0:
-        user_pending_messages[user_id] -= 1
-        outdated_response = "Your query has been updated. Please wait for the latest answer."
-        return {"output": outdated_response}   
-    output = await Chatbot.search(openai_client, retrieved_data, user_message)
-    if user_pending_messages[user_id] > 0:
-        user_pending_messages[user_id] -= 1
-        outdated_response = "Your query has been updated. Please wait for the latest answer."
-        return {"output": outdated_response} 
+    pending_response = handle_pending_messages(user_id)
+    if pending_response:
+        return {"output": pending_response}
 
+    output = await Chatbot.search(openai_client, retrieved_data, user_message)
+    pending_response = handle_pending_messages(user_id)
+    if pending_response:
+        return {"output": pending_response}
 
     user_pending_messages.pop(user_id)
     user_history[user_id].append({"role": "assistant", "content": output})
