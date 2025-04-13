@@ -1,6 +1,6 @@
 import json
 from asyncio import sleep
-
+from config import SUMMARY_SYSTEM_PROMPT, CONTEXT_SYSTEM_PROMPT
 from openai import OpenAI
 
 
@@ -9,17 +9,19 @@ class Chatbot:
     @classmethod
     async def search(cls, openai_client: OpenAI, data, message):
         system_prompt = cls.build_system_prompt(data)
-        system_message = {"role": "system", "content": system_prompt}
-        user_message = {"role": "user", "content": message}
+        messages = cls.prepare_model_messages(system_prompt, [{"role": "user", "content": message}])
+        return cls.run_model(openai_client, messages)
 
-        completion = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[system_message, user_message],
-            response_format={"type": "json_object"},
-        )
-        await sleep(5)
-        answer = json.loads(completion.choices[0].message.content)["answer"]
-        return answer
+    @classmethod
+    def summarize(cls, user_history: list, openai_client: OpenAI):
+        messages = cls.prepare_model_messages(SUMMARY_SYSTEM_PROMPT, user_history)
+        return cls.run_model(openai_client, messages)
+
+    @classmethod
+    async def search_with_context(cls, openai_client: OpenAI, message, user_history):
+        messages = cls.prepare_model_messages(CONTEXT_SYSTEM_PROMPT, user_history)
+        messages.append({"role": "user", "content": message})
+        return cls.run_model(openai_client, messages)
 
     @staticmethod
     def build_system_prompt(retrieved_data):
@@ -42,67 +44,9 @@ Provide an answer in the following JSON format:
     "answer": string
 }}
 """
+
     @staticmethod
-    def summarize(user_history: list, openai_client: OpenAI):
-        messages = []
-        system_prompt = """
-        You are an expert summarizer. Please read through the conversation below between a user and an assistant and generate a concise summary that captures the key points, topics, and main messages discussed. 
-        Focus on creating a clear overview that includes the user's questions and the assistant's responses. Output only the summary text.
-        The conversation provided below is structured as a list of messages in JSON format.
-        Each message has a "role" field (either "user" or "assistant") and a "content" field with the text of the message.
-        your summary should be in a first-person tone, as if your are speaking to the user.
-         Provide an answer in the following JSON format:
-        {
-            "summary": string
-        }       
-        """
-        system_message = {"role": "system", "content": system_prompt}
-        messages.append(system_message)
-        messages += user_history
-        completion = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            response_format={"type": "json_object"},
-        )
-        answer = json.loads(completion.choices[0].message.content)["summary"]
-        return answer
-    
-    @classmethod
-    async def build_user_message(cls, openai_client: OpenAI, message, user_history):
-        messages = []
-        system_prompt = """
-        You are a question clarifier. I will provide you with a conversation history structured as individual messages.
-        Each user message is marked with "role": "user" and each assistant response is marked with "role": "assistant".
-        Your task is to rephrase an ambiguous follow-up question into a fully self-contained query by integrating the relevant context from the conversation history.
-        For example, if the conversation history contains:
-        User: "Are there startups about wine in Chicago?"
-        Assistant: "Yes, Winestyr is a startup based in Chicago that offers a smarter way to wine by providing an alternative to mass-produced wines."
-        and the ambiguous follow-up question is:
-        "And in NY?"
-        then you should output:
-        "Are there startups about wine in NY?"
-        If there is no conversation history or you determine that the follow-up question does not depend on prior context, return the follow-up question unchanged.
-        Please output only the clarified, fully formed question in the following JSON format:
-        {
-            "answer": string
-        }
-        """
-        
-        system_message = {"role": "system", "content": system_prompt}
-        messages.append(system_message)
-        messages += user_history
-        messages.append({"role": "user", "content": message})
-        completion = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            response_format={"type": "json_object"},
-        )
-        await sleep(5)
-        answer = json.loads(completion.choices[0].message.content)["answer"]
-        return answer
-    
-    @staticmethod
-    def build_user_prompt(user_history):
+    def build_user_prompt(user_history: list):
         formatted_data  = []
         for message in user_history:
             formatted_data.append({"role": "user", "content": message['message']})
@@ -110,3 +54,21 @@ Provide an answer in the following JSON format:
         
         return formatted_data
 
+    @staticmethod
+    def run_model(openai_client : OpenAI, messages : list):
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            response_format={"type": "json_object"},
+        )
+        answer = json.loads(completion.choices[0].message.content)["answer"]
+        return answer
+
+    @staticmethod
+    def prepare_model_messages(system_prompt : str, user_prompt : list[dict]):
+        messages = []
+        system_message = {"role": "system", "content": system_prompt}
+        messages.append(system_message)
+        messages += user_prompt
+        return messages
+    
